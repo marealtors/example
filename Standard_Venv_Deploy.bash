@@ -1,172 +1,109 @@
-#begin install
+# standard deployment for a flask app, microservice, or api at a second-level domain such as 'service_name.yourdomain.com'
+# tested on ubuntu 18.04
+# ensure your DNS A record is set up properly before starting
+
+# find and replace:
+# service_name = your service name
+# yourdomain.com = your domain
+
+
+# install updates and requirements 
 sudo apt update
 sudo apt install -y python3-pip python3-dev nginx
 sudo pip3 install virtualenv
 
-mkdir ~/test1
-cd ~/test1
-virtualenv test1env
-source test1env/bin/activate
+# create your service environment
+mkdir ~/service_name
+cd ~/service_name
+virtualenv service_name_env
 
-#run these commands in venv 
+# activate it
+source service_name_env/bin/activate
+
+# install python modules  
 pip install gunicorn flask requests
 
-nano ~/test1/test1.py
-#use the following
+# create an application
+nano ~/service_name/service_name.py
+
+### use the following for service_name.py
 from flask import Flask
 app = Flask(__name__)
 
 @app.route("/")
 def hello():
-    return "<h1 style='color:red'>test1 placeholder</h1>"
+    return "<h1 style='color:red'>service_name placeholder</h1>"
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0')
-#
+###
+# save and close nano
     
-    
-nano ~/test1/wsgi.py
-#use the following
-from test1 import app
+#create a wsgi instance
+nano ~/service_name/wsgi.py
+
+### use the following for wsgi.py
+from service_name import app
 
 if __name__ == "__main__":
     app.run()
-#  
-    #exit venv      
-    deactivate
+###
+# save and close nano
+  
+#exit venv      
+deactivate
+    
+# create a new system service for your application
+sudo nano /etc/systemd/system/service_name.service
 
-    
-    
-sudo nano /etc/systemd/system/test1.service
-#use the following
+### use the following for service_name.service
 [Unit]
-Description=Gunicorn instance to serve test1
+Description=Gunicorn instance to serve service_name
 After=network.target
 
 [Service]
 User=ubuntu
 Group=www-data
-WorkingDirectory=/home/ubuntu/test1
-Environment="PATH=/home/ubuntu/test1/test1env/bin"
-ExecStart=/home/ubuntu/test1/test1env/bin/gunicorn --workers 3 --bind unix:test1.sock -m 007 wsgi:app
+WorkingDirectory=/home/ubuntu/service_name
+Environment="PATH=/home/ubuntu/service_name/service_name_env/bin"
+ExecStart=/home/ubuntu/service_name/service_name_env/bin/gunicorn --workers 3 --bind unix:service_name.sock -m 007 wsgi:app
 
 [Install]
 WantedBy=multi-user.target
-#
+###
+# save and close nano
 
+# start the service
+sudo systemctl start service_name
+sudo systemctl enable service_name
 
-sudo systemctl start test1
-sudo systemctl enable test1
-sudo nano /etc/nginx/sites-available/test1
-#use the following
+# add it to nginx
+sudo nano /etc/nginx/sites-available/service_name
+
+### use the following for service_name
 server {
     listen 80;
-    server_name test1.marealtor.com;
+    server_name service_name.yourdomain.com;
 
     location / {
         include proxy_params;
-        proxy_pass http://unix:/home/ubuntu/test1/test1.sock;
+        proxy_pass http://unix:/home/ubuntu/service_name/service_name.sock;
     }
 }
-#
+###
+# save and close nano
 
-
-sudo ln -s /etc/nginx/sites-available/test1 /etc/nginx/sites-enabled
+# enable and begin serving it in nginx after a restart
+sudo ln -s /etc/nginx/sites-available/service_name /etc/nginx/sites-enabled
 sudo nginx -t
-sudo systemctl restart nginx 
+sudo systemctl restart nginx
+
+# set up certbot for https and restart
 sudo add-apt-repository -y ppa:certbot/certbot
 sudo apt update
 sudo apt upgrade -y
 sudo apt install -y python-certbot-nginx
 sudo systemctl reload nginx
-sudo certbot --nginx -d test1.marealtor.com
-#manual input
-sudo systemctl restart test1
+sudo certbot --nginx -d service_name.yourdomain.com
+sudo systemctl restart service_name
 sudo systemctl restart nginx 
-
-
-###### SUBSEQUENT VENVS / 2LDOMAINS #########
-
-cd /home/ubuntu
-mkdir ~/test2
-cd ~/test2
-virtualenv test2env
-source test2env/bin/activate
-
-#run these commands in venv 
-pip install gunicorn flask requests
-
-nano ~/test2/test2.py
-#use the following
-from flask import Flask
-app = Flask(__name__)
-
-@app.route("/")
-def hello():
-    return "<h1 style='color:red'>test2 placeholder</h1>"
-
-if __name__ == "__main__":
-    app.run(host='0.0.0.0')
-#
-    
-    
-nano ~/test2/wsgi.py
-#use the following
-from test2 import app
-
-if __name__ == "__main__":
-    app.run()
-#  
-    #exit venv      
-    deactivate
-
-    
-    
-sudo nano /etc/systemd/system/test2.service
-#use the following
-[Unit]
-Description=Gunicorn instance to serve test2
-After=network.target
-
-[Service]
-User=ubuntu
-Group=www-data
-WorkingDirectory=/home/ubuntu/test2
-Environment="PATH=/home/ubuntu/test2/test2env/bin"
-ExecStart=/home/ubuntu/test2/test2env/bin/gunicorn --workers 3 --bind unix:test2.sock -m 007 wsgi:app
-
-[Install]
-WantedBy=multi-user.target
-#
-
-
-sudo systemctl start test2
-sudo systemctl enable test2
-sudo nano /etc/nginx/sites-available/test2
-#use the following
-server {
-    listen 80;
-    server_name test2.marealtor.com;
-
-    location / {
-        include proxy_params;
-        proxy_pass http://unix:/home/ubuntu/test2/test2.sock;
-    }
-}
-#
-
-
-sudo ln -s /etc/nginx/sites-available/test2 /etc/nginx/sites-enabled
-sudo nginx -t
-sudo systemctl restart nginx 
-sudo add-apt-repository -y ppa:certbot/certbot
-
-sudo systemctl reload nginx
-sudo certbot --nginx -d test2.marealtor.com
-#manual input 2
-sudo systemctl restart test2
-sudo systemctl restart nginx 
-
-
-
-
